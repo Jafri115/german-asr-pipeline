@@ -1,0 +1,77 @@
+# Quick test configuration for rapid iteration
+
+# Data paths
+data:
+  raw_audio_dir: "data/raw/audio"
+  transcript_dir: "data/raw/transcripts"
+  preprocessed_audio_dir: "data/preprocessed"
+
+# Pipeline paths
+paths:
+  manifests:
+    raw: "manifests/01_raw_manifest.parquet"
+    validated: "manifests/02_validated_manifest.parquet"
+    preprocessed: "manifests/03_preprocessed_manifest.parquet"
+    with_splits: "manifests/04_manifest_with_splits.parquet"
+  
+  splits_dir: "manifests/splits"
+  
+  artifacts:
+    benchmark_results: "artifacts/benchmark_results.parquet"
+    model_selection: "artifacts/model_selection.json"
+    finetuned_model: "artifacts/finetuned_model"
+    evaluation_results: "artifacts/evaluation_results.json"
+    inference_results: "artifacts/inference_results.parquet"
+  
+  reports_dir: "artifacts/reports"
+
+# Quick test settings
+pipeline:
+  validation:
+    min_duration_sec: 1.0
+    max_duration_sec: 30.0  # Shorter max for quick tests
+    target_sample_rate: 16000
+    require_transcript: true
+  
+  preprocessing:
+    target_sample_rate: 16000
+    normalize_transcripts: true
+    trim_silence: false
+  
+  split:
+    train_ratio: 0.7
+    val_ratio: 0.15
+    test_ratio: 0.15
+    strategy: "random"
+    seed: 42
+  
+  model_selection:
+    wer_weight: 0.5
+    speed_weight: 0.3
+
+# Benchmark with fewer models and samples
+benchmark:
+  models:
+    - "whisper-large-v3-turbo"
+    - "wav2vec2-xlsr-german"
+  device: null
+  max_samples: 50  # Only test on 50 samples
+
+# Quick fine-tuning
+finetune:
+  model_name: "openai/whisper-medium"  # Smaller model for quick tests
+  num_epochs: 1
+  batch_size: 4
+  learning_rate: 1.0e-5
+  fp16: true
+  seed: 42
+
+# Evaluation
+evaluation:
+  device: null
+  max_samples: 30  # Only evaluate on 30 samples
+
+# Inference
+inference:
+  device: null
+  use_fallback: false  # Skip fallback for speed

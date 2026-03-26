@@ -1,0 +1,131 @@
+# German ASR Pipeline Configuration
+
+# Data paths
+data:
+  raw_audio_dir: "data/raw/audio"
+  transcript_dir: "data/raw/transcripts"  # Optional: if transcripts are separate
+  srt_dir: "data/raw/transcripts/srt_captions"  # SRT caption files
+  ground_truth_dir: "data/raw/transcripts/ground_truth_text"  # Cleaned ground truths
+  asr_dataset: "data/asr_dataset.csv"  # Filtered dataset: amberscript-transcribed sessions
+  preprocessed_audio_dir: "data/preprocessed"
+  cleaned_audio_dir: "data/cleaned_audio"  # DeepFilterNet cleaned WAV output
+
+# Pipeline paths
+paths:
+  manifests:
+    raw: "manifests/01_raw_manifest.parquet"
+    validated: "manifests/02_validated_manifest.parquet"
+    preprocessed: "manifests/03_preprocessed_manifest.parquet"
+    with_splits: "manifests/04_manifest_with_splits.parquet"
+  
+  splits_dir: "manifests/splits"
+  
+  artifacts:
+    benchmark_results: "artifacts/benchmark_results.parquet"
+    model_selection: "artifacts/model_selection.json"
+    finetuned_model: "artifacts/finetuned_model"
+    evaluation_results: "artifacts/evaluation_results.json"
+    inference_results: "artifacts/inference_results.parquet"
+  
+  reports_dir: "artifacts/reports"
+
+# Pipeline stage configurations
+pipeline:
+  ingestion:
+    recursive: true
+    audio_extensions: [".wav", ".mp3", ".flac", ".ogg", ".m4a"]
+    transcript_extensions: [".txt", ".transcript", ".json", ".srt"]
+  
+  validation:
+    min_duration_sec: 1.0
+    max_duration_sec: 60.0
+    target_sample_rate: 16000
+    require_transcript: true
+    min_transcript_length: 2
+  
+  preprocessing:
+    target_sample_rate: 16000
+    target_channels: 1
+    normalize_transcripts: true
+    trim_silence: false
+    trim_top_db: 20
+    normalize_volume: true
+    max_duration_sec: null  # null means no truncation
+
+  audio_cleaning:
+    deep_filter_bin: "notebooks/deep-filter"  # Path to DeepFilterNet binary
+    extract_sample_rate: 48000              # DeepFilterNet expects 48 kHz
+    gain_db: 8.0                            # Gentle gain between denoise passes
+    highpass_freq: 120                      # Highpass filter cutoff (Hz)
+    dehum_freqs:                            # (freq_hz, gain_db) pairs for de-hum
+      - [50, -8]
+      - [100, -4]
+    target_lufs: -16.0                      # EBU R128 loudness target
+    true_peak: -1.5
+    lra: 9.0
+    limiter: 0.98
+    deep_filter_pf: false                   # Enable post-filter (aggressive)
+    mux_video: false                        # Mux audio back into video container
+  
+  chunking:
+    enabled: false
+    chunk_duration_sec: 30.0
+    overlap_sec: 1.0
+    min_chunk_duration_sec: 5.0
+    max_duration_threshold: 30.0
+  
+  split:
+    train_ratio: 0.8
+    val_ratio: 0.1
+    test_ratio: 0.1
+    strategy: "random"  # random, stratified, group, duration
+    stratify_by: null  # e.g., "domain"
+    group_by: null     # e.g., "speaker_id" to keep speakers together
+    seed: 42
+  
+  model_selection:
+    wer_weight: 0.5
+    cer_weight: 0.2
+    speed_weight: 0.2
+    stability_weight: 0.1
+    max_rtf: 1.0
+
+# Benchmark configuration
+benchmark:
+  models:
+    - "whisper-large-v3-turbo"
+    - "whisper-medium"
+    - "wav2vec2-xlsr-german"
+  device: null  # null means auto (cuda if available)
+  max_samples: null  # null means all samples
+
+# Fine-tuning configuration
+finetune:
+  model_name: "openai/whisper-large-v3-turbo"
+  num_epochs: 3
+  batch_size: 8
+  gradient_accumulation_steps: 2
+  learning_rate: 1.0e-5
+  warmup_steps: 500
+  max_grad_norm: 1.0
+  max_input_length: 30.0  # seconds
+  max_label_length: 448
+  fp16: true
+  early_stopping_patience: 3
+  seed: 42
+
+# Evaluation configuration
+evaluation:
+  device: null
+  max_samples: null
+
+# Inference configuration
+inference:
+  device: null
+  batch_size: 1
+  use_fallback: true
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
